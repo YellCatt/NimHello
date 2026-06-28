@@ -1,4 +1,4 @@
-name: Build and Release Nim (Multi-platform + MIPS)
+name: Build and Release Nim (Multi-platform + 极路由2)
 
 on:
   push:
@@ -20,7 +20,7 @@ jobs:
           - os: macos-latest
             target: macos
           - os: ubuntu-latest
-            target: mips
+            target: hiwifi2
     runs-on: ${{ matrix.os }}
 
     steps:
@@ -31,47 +31,56 @@ jobs:
         with:
           nim-version: '2.0.0'
 
-      # ========== 原生平台编译 ==========
+      # ========== Linux ==========
       - name: Build (Linux)
         if: matrix.target == 'linux'
         run: |
           nim c -d:release -o:hello-linux hello.nim
           tar czvf hello-linux.tar.gz hello-linux
 
+      # ========== Windows ==========
       - name: Build (Windows)
         if: matrix.target == 'windows'
         run: |
           nim c -d:release -o:hello.exe hello.nim
           7z a hello-windows.zip hello.exe
 
+      # ========== macOS ==========
       - name: Build (macOS)
         if: matrix.target == 'macos'
         run: |
           nim c -d:release -o:hello-macos hello.nim
           tar czvf hello-macos.tar.gz hello-macos
 
-      # ========== MIPS 交叉编译 ==========
-      - name: Install MIPS toolchain
-        if: matrix.target == 'mips'
+      # ========== 极路由2 (mt7620) ==========
+      - name: Install OpenWrt SDK (mt7620)
+        if: matrix.target == 'hiwifi2'
         run: |
           sudo apt-get update
-          sudo apt-get install -y gcc-mipsel-linux-gnu g++-mipsel-linux-gnu
+          sudo apt-get install -y xz-utils
+          
+          wget -q https://downloads.openwrt.org/releases/23.05.3/targets/ramips/mt7620/openwrt-sdk-23.05.3-ramips-mt7620_gcc-12.3.0_musl.Linux-x86_64.tar.xz
+          tar xf openwrt-sdk-*.tar.xz
+          
+          SDK_DIR=$(ls -d openwrt-sdk-*)
+          echo "$PWD/$SDK_DIR/staging_dir/toolchain-mipsel_24kc_gcc-12.3.0_musl/bin" >> $GITHUB_PATH
+          echo "STAGING_DIR=$PWD/$SDK_DIR/staging_dir" >> $GITHUB_ENV
 
-      - name: Build (MIPS)
-        if: matrix.target == 'mips'
+      - name: Build (极路由2)
+        if: matrix.target == 'hiwifi2'
         run: |
           nim c --cpu:mipsel --os:linux \
             --cc:gcc \
-            --gcc.exe:mipsel-linux-gnu-gcc \
-            --gcc.linkerexe:mipsel-linux-gnu-gcc \
+            --gcc.exe:mipsel-openwrt-linux-musl-gcc \
+            --gcc.linkerexe:mipsel-openwrt-linux-musl-gcc \
             --passC:"-O2 -EL -msoft-float" \
             --passL:"-lpthread -ldl" \
             -d:release \
             -d:ssl \
             --mm:arc \
             --threads:off \
-            -o:hello-mips hello.nim
-          tar czvf hello-mips.tar.gz hello-mips
+            -o:hello-hiwifi2 hello.nim
+          tar czvf hello-hiwifi2.tar.gz hello-hiwifi2
 
       # ========== 上传产物 ==========
       - name: Upload artifact
@@ -103,8 +112,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           VERSION="v$(date +%Y%m%d-%H%M%S)"
-          echo "Creating release: $VERSION"
           gh release create "$VERSION" \
             --title "Release $VERSION" \
-            --notes "多平台自动构建（含 MIPS）" \
+            --notes "多平台自动构建（含极路由2）" \
             artifacts/*
