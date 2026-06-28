@@ -60,11 +60,13 @@ jobs:
           sudo apt-get install -y xz-utils
           
           wget -q https://downloads.openwrt.org/releases/23.05.3/targets/ramips/mt7620/openwrt-sdk-23.05.3-ramips-mt7620_gcc-12.3.0_musl.Linux-x86_64.tar.xz
-          tar xf openwrt-sdk-*.tar.xz
           
-          SDK_DIR=$(ls -d openwrt-sdk-*)
-          echo "$PWD/$SDK_DIR/staging_dir/toolchain-mipsel_24kc_gcc-12.3.0_musl/bin" >> $GITHUB_PATH
-          echo "STAGING_DIR=$PWD/$SDK_DIR/staging_dir" >> $GITHUB_ENV
+          mkdir -p openwrt-sdk
+          tar xf openwrt-sdk-*.tar.xz -C openwrt-sdk --strip-components=1
+          
+          TOOLCHAIN_DIR=$(find openwrt-sdk/staging_dir -name "toolchain-*" -type d | head -1)
+          echo "$PWD/$TOOLCHAIN_DIR/bin" >> $GITHUB_PATH
+          echo "STAGING_DIR=$PWD/openwrt-sdk/staging_dir" >> $GITHUB_ENV
 
       - name: Build (极路由2)
         if: matrix.target == 'hiwifi2'
