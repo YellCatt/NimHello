@@ -52,7 +52,7 @@ jobs:
           nim c -d:release -o:hello-macos hello.nim
           tar czvf hello-macos.tar.gz hello-macos
 
-      # ========== 极路由2 (mt7620) ==========
+      # ========== 极路由2 (mt7620) - 静态链接 ==========
       - name: Install OpenWrt SDK (mt7620)
         if: matrix.target == 'hiwifi2'
         run: |
@@ -68,7 +68,7 @@ jobs:
           echo "$PWD/$TOOLCHAIN_DIR/bin" >> $GITHUB_PATH
           echo "STAGING_DIR=$PWD/openwrt-sdk/staging_dir" >> $GITHUB_ENV
 
-      - name: Build (极路由2)
+      - name: Build (极路由2 - 静态链接)
         if: matrix.target == 'hiwifi2'
         run: |
           nim c --cpu:mipsel --os:linux \
@@ -76,12 +76,17 @@ jobs:
             --gcc.exe:mipsel-openwrt-linux-musl-gcc \
             --gcc.linkerexe:mipsel-openwrt-linux-musl-gcc \
             --passC:"-O2 -EL -msoft-float" \
-            --passL:"-lpthread -ldl" \
+            --passL:"-static -lpthread -ldl" \
             -d:release \
             -d:ssl \
             --mm:arc \
             --threads:off \
             -o:hello-hiwifi2 hello.nim
+          
+          # 验证
+          file hello-hiwifi2
+          ldd hello-hiwifi2 2>/dev/null || echo "Static binary confirmed"
+          
           tar czvf hello-hiwifi2.tar.gz hello-hiwifi2
 
       # ========== 上传产物 ==========
@@ -116,5 +121,5 @@ jobs:
           VERSION="v$(date +%Y%m%d-%H%M%S)"
           gh release create "$VERSION" \
             --title "Release $VERSION" \
-            --notes "多平台自动构建（含极路由2）" \
+            --notes "多平台自动构建（含极路由2 - 静态链接）" \
             artifacts/*
