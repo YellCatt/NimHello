@@ -1,4 +1,4 @@
-name: Build and Release Nim
+name: Build and Release Nim (Multi-platform)
 
 on:
   push:
@@ -10,7 +10,10 @@ permissions:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
 
     steps:
       - uses: actions/checkout@v4
@@ -20,19 +23,58 @@ jobs:
         with:
           nim-version: '2.0.0'
 
-      - name: Build
+      # Linux 和 macOS 编译
+      - name: Build (Linux/macOS)
+        if: runner.os != 'Windows'
         run: nim c -d:release -o:hello hello.nim
 
-      - name: Package
+      # Windows 编译
+      - name: Build (Windows)
+        if: runner.os == 'Windows'
+        run: nim c -d:release -o:hello.exe hello.nim
+
+      # Linux 和 macOS 打包
+      - name: Package (Linux/macOS)
+        if: runner.os != 'Windows'
         run: |
           chmod +x hello
-          tar czvf hello-linux.tar.gz hello
+          tar czvf hello-${{ runner.os }}.tar.gz hello
+
+      # Windows 打包
+      - name: Package (Windows)
+        if: runner.os == 'Windows'
+        run: 7z a hello-Windows.zip hello.exe
+
+      # 上传构建产物（方便在 Actions 里查看）
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: hello-${{ runner.os }}
+          path: |
+            hello-*.tar.gz
+            hello-*.zip
+
+  # 等三个平台都编译完后，统一发布 Release
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: List downloaded files
+        run: ls -la artifacts/
 
       - name: Create Release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release create "v${{ github.run_number }}" \
-            --title "Release v${{ github.run_number }}" \
-            --notes "自动构建的 Release" \
-            hello-linux.tar.gz
+          VERSION="v${{ github.run_number }}"
+          gh release create "$VERSION" \
+            --title "Release $VERSION" \
+            --notes "自动构建的多平台 Release" \
+            artifacts/*
