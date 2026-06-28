@@ -1,33 +1,27 @@
 name: Build Nim
+
 on:
   push:
-    branches: [ main ]
-  pull_request:
-    branches: [ main ]
+    branches: [ "main" ]
+  workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-latest
+
     steps:
-      # 1. 拉取你的代码（把v4改成v5消除Node警告）
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v4
 
-      # 2. 安装 Nim 环境（官方action）
       - name: Setup Nim
-        uses: alaviss/setup-nim@v0.3
+        uses: jiro4989/setup-nim-action@v2
         with:
-          nim-version: stable # 锁定稳定版，也可以写 2.2.0 指定版本
+          nim-version: '2.0.0'
 
-      # 3. 编译 Nim 程序
-      - name: Compile Nim project
-        run: |
-          # 发布优化编译，输出单文件
-          nim c -d:release --static -o:nim_app main.nim
-          ls -lh nim_app # 打印产物信息
+      - name: Build
+        run: nim c -o:app main.nim
 
-      # 4. 上传编译好的程序到制品（可选，下载成品）
-      - name: Upload artifact
+      - name: Upload binary
         uses: actions/upload-artifact@v4
         with:
-          name: compiled-binary
-          path: nim_app
+          name: app
+          path: app
