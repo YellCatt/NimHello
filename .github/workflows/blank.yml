@@ -1,4 +1,4 @@
-name: Build Nim
+name: Build and Release Nim
 
 on:
   push:
@@ -17,11 +17,19 @@ jobs:
         with:
           nim-version: '2.0.0'
 
-      - name: Build hello.nim
-        run: nim c -o:hello hello.nim
+      - name: Build
+        run: nim c -d:release -o:hello hello.nim
 
-      - name: Upload binary
-        uses: actions/upload-artifact@v4
+      - name: Package
+        run: |
+          chmod +x hello
+          tar czvf hello-linux.tar.gz hello
+
+      - name: Upload to Release
+        uses: softprops/action-gh-release@v1
         with:
-          name: hello
-          path: hello
+          tag_name: v${{ github.run_number }}
+          name: Release v${{ github.run_number }}
+          files: hello-linux.tar.gz
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
