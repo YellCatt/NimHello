@@ -1,4 +1,4 @@
-name: Build and Release Nim (Multi-platform)
+name: Build and Release Nim (Multi-platform + MIPS)
 
 on:
   push:
@@ -12,7 +12,15 @@ jobs:
   build:
     strategy:
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
+        include:
+          - os: ubuntu-latest
+            target: linux
+          - os: windows-latest
+            target: windows
+          - os: macos-latest
+            target: macos
+          - os: ubuntu-latest
+            target: mips
     runs-on: ${{ matrix.os }}
 
     steps:
@@ -23,28 +31,53 @@ jobs:
         with:
           nim-version: '2.0.0'
 
-      - name: Build (Linux/macOS)
-        if: runner.os != 'Windows'
-        run: nim c -d:release -o:hello hello.nim
+      # ========== 原生平台编译 ==========
+      - name: Build (Linux)
+        if: matrix.target == 'linux'
+        run: |
+          nim c -d:release -o:hello-linux hello.nim
+          tar czvf hello-linux.tar.gz hello-linux
 
       - name: Build (Windows)
-        if: runner.os == 'Windows'
-        run: nim c -d:release -o:hello.exe hello.nim
-
-      - name: Package (Linux/macOS)
-        if: runner.os != 'Windows'
+        if: matrix.target == 'windows'
         run: |
-          chmod +x hello
-          tar czvf hello-${{ runner.os }}.tar.gz hello
+          nim c -d:release -o:hello.exe hello.nim
+          7z a hello-windows.zip hello.exe
 
-      - name: Package (Windows)
-        if: runner.os == 'Windows'
-        run: 7z a hello-Windows.zip hello.exe
+      - name: Build (macOS)
+        if: matrix.target == 'macos'
+        run: |
+          nim c -d:release -o:hello-macos hello.nim
+          tar czvf hello-macos.tar.gz hello-macos
 
+      # ========== MIPS 交叉编译 ==========
+      - name: Install MIPS toolchain
+        if: matrix.target == 'mips'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-mipsel-linux-gnu g++-mipsel-linux-gnu
+
+      - name: Build (MIPS)
+        if: matrix.target == 'mips'
+        run: |
+          nim c --cpu:mipsel --os:linux \
+            --cc:gcc \
+            --gcc.exe:mipsel-linux-gnu-gcc \
+            --gcc.linkerexe:mipsel-linux-gnu-gcc \
+            --passC:"-O2 -EL -msoft-float" \
+            --passL:"-lpthread -ldl" \
+            -d:release \
+            -d:ssl \
+            --mm:arc \
+            --threads:off \
+            -o:hello-mips hello.nim
+          tar czvf hello-mips.tar.gz hello-mips
+
+      # ========== 上传产物 ==========
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: hello-${{ runner.os }}
+          name: hello-${{ matrix.target }}
           path: |
             hello-*.tar.gz
             hello-*.zip
@@ -54,7 +87,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4  # ← 加这一行！
+      - uses: actions/checkout@v4
 
       - name: Download all artifacts
         uses: actions/download-artifact@v4
@@ -73,5 +106,5 @@ jobs:
           echo "Creating release: $VERSION"
           gh release create "$VERSION" \
             --title "Release $VERSION" \
-            --notes "多平台自动构建" \
+            --notes "多平台自动构建（含 MIPS）" \
             artifacts/*
